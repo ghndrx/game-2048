@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [bestScore, setBestScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [history, setHistory] = useState<Grid[]>([]);
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   const initializeGrid = useCallback(() => {
     const newGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
@@ -109,6 +110,35 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const diffX = touchStart.x - touchEndX;
+    const diffY = touchStart.y - touchEndY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // Horizontal swipe
+      if (Math.abs(diffX) > 30) { // Threshold
+        if (diffX > 0) move('LEFT');
+        else move('RIGHT');
+      }
+    } else {
+      // Vertical swipe
+      if (Math.abs(diffY) > 30) { // Threshold
+        if (diffY > 0) move('UP');
+        else move('DOWN');
+      }
+    }
+    setTouchStart(null);
+  };
+
   const getTileColor = (value: number) => {
     const colors: Record<number, string> = {
       2: 'bg-gray-200 text-gray-800',
@@ -160,7 +190,11 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-[#bbada0] p-4 rounded-lg relative">
+        <div 
+          className="bg-[#bbada0] p-4 rounded-lg relative touch-none"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <div className="grid grid-cols-4 gap-4">
             {grid.map((row, i) => (
               row.map((cell, j) => (
@@ -195,7 +229,7 @@ const App: React.FC = () => {
         </div>
         
         <p className="mt-8 text-[#776e65] text-center">
-          Use <strong>arrow keys</strong> to move tiles.
+          Use <strong>arrow keys</strong> or <strong>swipe</strong> to move tiles.
         </p>
       </div>
     </div>
