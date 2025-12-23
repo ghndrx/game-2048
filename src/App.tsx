@@ -303,33 +303,42 @@ const App: React.FC = () => {
           {/* Animated tiles */}
           <div className="absolute inset-4 pointer-events-none">
             <AnimatePresence>
-              {tiles.map((tile) => (
-                <motion.div
-                  key={tile.id}
-                  layout
-                  initial={tile.isNew ? { scale: 0, opacity: 0 } : false}
-                  animate={{ 
-                    scale: 1, 
-                    opacity: 1,
-                    x: `calc(${tile.col * 100}% + ${tile.col * 16}px)`,
-                    y: `calc(${tile.row * 100}% + ${tile.row * 16}px)`,
-                  }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ 
-                    type: "spring", 
-                    stiffness: 300, 
-                    damping: 30,
-                    duration: 0.15
-                  }}
-                  className={`absolute flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(tile.value)}`}
-                  style={{
-                    width: 'calc(25% - 12px)',
-                    height: 'calc(25% - 12px)',
-                  }}
-                >
-                  {tile.value}
-                </motion.div>
-              ))}
+              {tiles.map((tile) => {
+                const tileSize = `calc(25% - 12px)`;
+                const xPos = `calc(${tile.col * 25}% + ${tile.col * 16}px)`;
+                const yPos = `calc(${tile.row * 25}% + ${tile.row * 16}px)`;
+                
+                return (
+                  <motion.div
+                    key={tile.id}
+                    initial={tile.isNew ? { 
+                      scale: 0, 
+                      opacity: 0,
+                      left: xPos,
+                      top: yPos,
+                    } : false}
+                    animate={{ 
+                      scale: 1, 
+                      opacity: 1,
+                      left: xPos,
+                      top: yPos,
+                    }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 260, 
+                      damping: 26,
+                    }}
+                    className={`absolute flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(tile.value)}`}
+                    style={{
+                      width: tileSize,
+                      height: tileSize,
+                    }}
+                  >
+                    {tile.value}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
           
