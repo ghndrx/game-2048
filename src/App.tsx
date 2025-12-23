@@ -5,21 +5,51 @@ import { RefreshCw, Undo } from 'lucide-react';
 type Grid = number[][];
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 
+interface Tile {
+  id: string;
+  value: number;
+  row: number;
+  col: number;
+  isNew?: boolean;
+  mergedFrom?: string[];
+}
+
 const GRID_SIZE = 4;
 
 const App: React.FC = () => {
   const [grid, setGrid] = useState<Grid>([]);
+  const [tiles, setTiles] = useState<Tile[]>([]);
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [history, setHistory] = useState<Grid[]>([]);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [tileIdCounter, setTileIdCounter] = useState(0);
 
   const initializeGrid = useCallback(() => {
     const newGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
-    addRandomTile(newGrid);
-    addRandomTile(newGrid);
+    const newTiles: Tile[] = [];
+    let counter = 0;
+    
+    // Add two random tiles
+    for (let i = 0; i < 2; i++) {
+      const emptyCells = [];
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (newGrid[r][c] === 0) emptyCells.push({ r, c });
+        }
+      }
+      if (emptyCells.length > 0) {
+        const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        const value = Math.random() < 0.9 ? 2 : 4;
+        newGrid[r][c] = value;
+        newTiles.push({ id: `tile-${counter++}`, value, row: r, col: c, isNew: true });
+      }
+    }
+    
     setGrid(newGrid);
+    setTiles(newTiles);
+    setTileIdCounter(counter);
     setScore(0);
     setGameOver(false);
     setHistory([]);
@@ -38,64 +68,130 @@ const App: React.FC = () => {
     }
   }, [score, bestScore]);
 
-  const addRandomTile = (currentGrid: Grid) => {
-    const emptyCells = [];
-    for (let i = 0; i < GRID_SIZE; i++) {
-      for (let j = 0; j < GRID_SIZE; j++) {
-        if (currentGrid[i][j] === 0) emptyCells.push({ x: i, y: j });
-      }
-    }
-    if (emptyCells.length > 0) {
-      const { x, y } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-      currentGrid[x][y] = Math.random() < 0.9 ? 2 : 4;
-    }
-  };
-
   const move = useCallback((direction: Direction) => {
     if (gameOver) return;
 
-    const newGrid = JSON.parse(JSON.stringify(grid));
-    let moved = false;
+    let newGrid = JSON.parse(JSON.stringify(grid)) as Grid;
+    let newTiles = [...tiles];
     let newScore = score;
+    let moved = false;
+    let counter = tileIdCounter;
 
-    const rotate = (matrix: Grid) => matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
-
-    let workingGrid = [...newGrid];
-
-    // Rotate so we always process rows left-to-right
-    if (direction === 'LEFT') workingGrid = rotate(rotate(workingGrid)); // 180
-    if (direction === 'UP') workingGrid = rotate(rotate(rotate(workingGrid))); // 270 (CCW 90)
-    if (direction === 'DOWN') workingGrid = rotate(workingGrid); // 90
-
-    // Real implementation of slide and merge:
-    for (let i = 0; i < GRID_SIZE; i++) {
-      let row = workingGrid[i].filter((val: number) => val !== 0);
-      for (let j = 0; j < row.length - 1; j++) {
-        if (row[j] === row[j + 1]) {
-          row[j] *= 2;
-          newScore += row[j];
-          row.splice(j + 1, 1);
+    // Helper to move tiles in a row (left direction)
+    const processRow = (row: Tile[]): { tiles: Tile[]; merged: boolean } => {
+      const nonEmpty = row.filter(t => t.value !== 0);
+      const result: Tile[] = [];
+      let localMerged = false;
+      
+      for (let i = 0; i < nonEmpty.length; i++) {
+        if (i < nonEmpty.length - 1 && nonEmpty[i].value === nonEmpty[i + 1].value) {
+          // Merge
+          const newValue = nonEmpty[i].value * 2;
+          result.push({
+            id: `tile-${counter++}`,
+            value: newValue,
+            row: nonEmpty[i].row,
+            col: nonEmpty[i].col,
+            mergedFrom: [nonEmpty[i].id, nonEmpty[i + 1].id]
+          });
+          newScore += newValue;
+          localMerged = true;
+          i++; // Skip next tile
+        } else {
+          result.push({ ...nonEmpty[i] });
         }
       }
-      while (row.length < GRID_SIZE) row.push(0);
-      if (JSON.stringify(workingGrid[i]) !== JSON.stringify(row)) moved = true;
-      workingGrid[i] = row;
-    }
+      
+      return { tiles: result, merged: localMerged };
+    };
 
-    // Rotate back to original orientation
-    if (direction === 'LEFT') workingGrid = rotate(rotate(workingGrid)); // 180 back
-    if (direction === 'UP') workingGrid = rotate(workingGrid); // 90 back (to undo 270)
-    if (direction === 'DOWN') workingGrid = rotate(rotate(rotate(workingGrid))); // 270 back (to undo 90)
+    // Process based on direction
+    const processGrid = () => {
+      const newTileArray: Tile[] = [];
+      
+      if (direction === 'LEFT') {
+        for (let row = 0; row < GRID_SIZE; row++) {
+          const rowTiles = newTiles.filter(t => t.row === row).sort((a, b) => a.col - b.col);
+          const { tiles: processed, merged } = processRow(rowTiles);
+          processed.forEach((tile, idx) => {
+            tile.row = row;
+            tile.col = idx;
+            if (tile.col !== rowTiles[idx]?.col) moved = true;
+            newTileArray.push(tile);
+          });
+          if (merged) moved = true;
+        }
+      } else if (direction === 'RIGHT') {
+        for (let row = 0; row < GRID_SIZE; row++) {
+          const rowTiles = newTiles.filter(t => t.row === row).sort((a, b) => b.col - a.col);
+          const { tiles: processed, merged } = processRow(rowTiles);
+          processed.forEach((tile, idx) => {
+            tile.row = row;
+            tile.col = GRID_SIZE - 1 - idx;
+            if (tile.col !== rowTiles[idx]?.col) moved = true;
+            newTileArray.push(tile);
+          });
+          if (merged) moved = true;
+        }
+      } else if (direction === 'UP') {
+        for (let col = 0; col < GRID_SIZE; col++) {
+          const colTiles = newTiles.filter(t => t.col === col).sort((a, b) => a.row - b.row);
+          const { tiles: processed, merged } = processRow(colTiles);
+          processed.forEach((tile, idx) => {
+            tile.col = col;
+            tile.row = idx;
+            if (tile.row !== colTiles[idx]?.row) moved = true;
+            newTileArray.push(tile);
+          });
+          if (merged) moved = true;
+        }
+      } else if (direction === 'DOWN') {
+        for (let col = 0; col < GRID_SIZE; col++) {
+          const colTiles = newTiles.filter(t => t.col === col).sort((a, b) => b.row - a.row);
+          const { tiles: processed, merged } = processRow(colTiles);
+          processed.forEach((tile, idx) => {
+            tile.col = col;
+            tile.row = GRID_SIZE - 1 - idx;
+            if (tile.row !== colTiles[idx]?.row) moved = true;
+            newTileArray.push(tile);
+          });
+          if (merged) moved = true;
+        }
+      }
+      
+      return newTileArray;
+    };
+
+    const processedTiles = processGrid();
 
     if (moved) {
+      // Update grid from tiles
+      newGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
+      processedTiles.forEach(tile => {
+        newGrid[tile.row][tile.col] = tile.value;
+      });
+
+      // Add random tile
+      const emptyCells = [];
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (newGrid[r][c] === 0) emptyCells.push({ r, c });
+        }
+      }
+      if (emptyCells.length > 0) {
+        const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        const value = Math.random() < 0.9 ? 2 : 4;
+        newGrid[r][c] = value;
+        processedTiles.push({ id: `tile-${counter++}`, value, row: r, col: c, isNew: true });
+      }
+
       setHistory(prev => [...prev, grid]);
-      addRandomTile(workingGrid);
-      setGrid(workingGrid);
+      setGrid(newGrid);
+      setTiles(processedTiles);
+      setTileIdCounter(counter);
       setScore(newScore);
-      
-      // Check game over logic could be added here
     }
-  }, [grid, gameOver, score]);
+  }, [grid, tiles, gameOver, score, tileIdCounter]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     switch (e.key) {
@@ -192,31 +288,49 @@ const App: React.FC = () => {
         </div>
 
         <div 
-          className="bg-[#bbada0] p-4 rounded-lg relative touch-none"
+          className="bg-[#bbada0] p-4 rounded-lg relative touch-none overflow-hidden"
+          style={{ width: '100%', aspectRatio: '1/1' }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="grid grid-cols-4 gap-4">
-            {grid.map((row, i) => (
-              row.map((cell, j) => (
-                <div key={`${i}-${j}`} className="w-full pt-[100%] relative bg-[#cdc1b4] rounded-md">
-                  <AnimatePresence mode='popLayout'>
-                    {cell !== 0 && (
-                      <motion.div
-                        key={`${i}-${j}-${cell}`} // Unique key for animation
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                        className={`absolute inset-0 flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(cell)}`}
-                      >
-                        {cell}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))
+          {/* Background grid cells */}
+          <div className="grid grid-cols-4 gap-4 absolute inset-4">
+            {Array(GRID_SIZE * GRID_SIZE).fill(0).map((_, idx) => (
+              <div key={`bg-${idx}`} className="bg-[#cdc1b4] rounded-md" />
             ))}
+          </div>
+          
+          {/* Animated tiles */}
+          <div className="absolute inset-4 pointer-events-none">
+            <AnimatePresence>
+              {tiles.map((tile) => (
+                <motion.div
+                  key={tile.id}
+                  layout
+                  initial={tile.isNew ? { scale: 0, opacity: 0 } : false}
+                  animate={{ 
+                    scale: 1, 
+                    opacity: 1,
+                    x: `calc(${tile.col * 100}% + ${tile.col * 16}px)`,
+                    y: `calc(${tile.row * 100}% + ${tile.row * 16}px)`,
+                  }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ 
+                    type: "spring", 
+                    stiffness: 300, 
+                    damping: 30,
+                    duration: 0.15
+                  }}
+                  className={`absolute flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(tile.value)}`}
+                  style={{
+                    width: 'calc(25% - 12px)',
+                    height: 'calc(25% - 12px)',
+                  }}
+                >
+                  {tile.value}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
           
           {gameOver && (
