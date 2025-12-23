@@ -72,105 +72,84 @@ const App: React.FC = () => {
     if (gameOver) return;
 
     let newGrid = JSON.parse(JSON.stringify(grid)) as Grid;
-    let newTiles = [...tiles];
-    let newScore = score;
     let moved = false;
-    let counter = tileIdCounter;
+    let newScore = score;
 
-    // Helper to move tiles in a row (left direction)
-    const processRow = (row: Tile[]): { tiles: Tile[]; merged: boolean } => {
-      const nonEmpty = row.filter(t => t.value !== 0);
-      const result: Tile[] = [];
-      let localMerged = false;
+    // Slide and merge logic for a single row/column
+    const slideLine = (line: number[]): { line: number[], moved: boolean, score: number } => {
+      // Remove zeros
+      let filtered = line.filter(x => x !== 0);
+      let newLine: number[] = [];
+      let lineScore = 0;
+      let lineMoved = false;
       
-      for (let i = 0; i < nonEmpty.length; i++) {
-        if (i < nonEmpty.length - 1 && nonEmpty[i].value === nonEmpty[i + 1].value) {
-          // Merge
-          const newValue = nonEmpty[i].value * 2;
-          result.push({
-            id: `tile-${counter++}`,
-            value: newValue,
-            row: nonEmpty[i].row,
-            col: nonEmpty[i].col,
-            mergedFrom: [nonEmpty[i].id, nonEmpty[i + 1].id]
-          });
-          newScore += newValue;
-          localMerged = true;
-          i++; // Skip next tile
+      // Merge adjacent equal tiles
+      for (let i = 0; i < filtered.length; i++) {
+        if (i < filtered.length - 1 && filtered[i] === filtered[i + 1]) {
+          newLine.push(filtered[i] * 2);
+          lineScore += filtered[i] * 2;
+          i++; // Skip next element
         } else {
-          result.push({ ...nonEmpty[i] });
+          newLine.push(filtered[i]);
         }
       }
       
-      return { tiles: result, merged: localMerged };
-    };
-
-    // Process based on direction
-    const processGrid = () => {
-      const newTileArray: Tile[] = [];
+      // Pad with zeros
+      while (newLine.length < GRID_SIZE) {
+        newLine.push(0);
+      }
       
-      if (direction === 'LEFT') {
-        for (let row = 0; row < GRID_SIZE; row++) {
-          const rowTiles = newTiles.filter(t => t.row === row).sort((a, b) => a.col - b.col);
-          const { tiles: processed, merged } = processRow(rowTiles);
-          processed.forEach((tile, idx) => {
-            tile.row = row;
-            tile.col = idx;
-            if (tile.col !== rowTiles[idx]?.col) moved = true;
-            newTileArray.push(tile);
-          });
-          if (merged) moved = true;
-        }
-      } else if (direction === 'RIGHT') {
-        for (let row = 0; row < GRID_SIZE; row++) {
-          const rowTiles = newTiles.filter(t => t.row === row).sort((a, b) => b.col - a.col);
-          const { tiles: processed, merged } = processRow(rowTiles);
-          processed.forEach((tile, idx) => {
-            tile.row = row;
-            tile.col = GRID_SIZE - 1 - idx;
-            if (tile.col !== rowTiles[idx]?.col) moved = true;
-            newTileArray.push(tile);
-          });
-          if (merged) moved = true;
-        }
-      } else if (direction === 'UP') {
-        for (let col = 0; col < GRID_SIZE; col++) {
-          const colTiles = newTiles.filter(t => t.col === col).sort((a, b) => a.row - b.row);
-          const { tiles: processed, merged } = processRow(colTiles);
-          processed.forEach((tile, idx) => {
-            tile.col = col;
-            tile.row = idx;
-            if (tile.row !== colTiles[idx]?.row) moved = true;
-            newTileArray.push(tile);
-          });
-          if (merged) moved = true;
-        }
-      } else if (direction === 'DOWN') {
-        for (let col = 0; col < GRID_SIZE; col++) {
-          const colTiles = newTiles.filter(t => t.col === col).sort((a, b) => b.row - a.row);
-          const { tiles: processed, merged } = processRow(colTiles);
-          processed.forEach((tile, idx) => {
-            tile.col = col;
-            tile.row = GRID_SIZE - 1 - idx;
-            if (tile.row !== colTiles[idx]?.row) moved = true;
-            newTileArray.push(tile);
-          });
-          if (merged) moved = true;
+      // Check if anything moved
+      for (let i = 0; i < GRID_SIZE; i++) {
+        if (line[i] !== newLine[i]) {
+          lineMoved = true;
+          break;
         }
       }
       
-      return newTileArray;
+      return { line: newLine, moved: lineMoved, score: lineScore };
     };
 
-    const processedTiles = processGrid();
+    // Process grid based on direction
+    if (direction === 'LEFT') {
+      for (let row = 0; row < GRID_SIZE; row++) {
+        const result = slideLine(newGrid[row]);
+        newGrid[row] = result.line;
+        if (result.moved) moved = true;
+        newScore += result.score;
+      }
+    } else if (direction === 'RIGHT') {
+      for (let row = 0; row < GRID_SIZE; row++) {
+        const reversed = [...newGrid[row]].reverse();
+        const result = slideLine(reversed);
+        newGrid[row] = result.line.reverse();
+        if (result.moved) moved = true;
+        newScore += result.score;
+      }
+    } else if (direction === 'UP') {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        const column = newGrid.map(row => row[col]);
+        const result = slideLine(column);
+        for (let row = 0; row < GRID_SIZE; row++) {
+          newGrid[row][col] = result.line[row];
+        }
+        if (result.moved) moved = true;
+        newScore += result.score;
+      }
+    } else if (direction === 'DOWN') {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        const column = newGrid.map(row => row[col]).reverse();
+        const result = slideLine(column);
+        const finalColumn = result.line.reverse();
+        for (let row = 0; row < GRID_SIZE; row++) {
+          newGrid[row][col] = finalColumn[row];
+        }
+        if (result.moved) moved = true;
+        newScore += result.score;
+      }
+    }
 
     if (moved) {
-      // Update grid from tiles
-      newGrid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
-      processedTiles.forEach(tile => {
-        newGrid[tile.row][tile.col] = tile.value;
-      });
-
       // Add random tile
       const emptyCells = [];
       for (let r = 0; r < GRID_SIZE; r++) {
@@ -178,16 +157,45 @@ const App: React.FC = () => {
           if (newGrid[r][c] === 0) emptyCells.push({ r, c });
         }
       }
+      
       if (emptyCells.length > 0) {
         const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
         const value = Math.random() < 0.9 ? 2 : 4;
         newGrid[r][c] = value;
-        processedTiles.push({ id: `tile-${counter++}`, value, row: r, col: c, isNew: true });
+      }
+
+      // Update tiles array from grid
+      const newTiles: Tile[] = [];
+      let counter = tileIdCounter;
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (newGrid[r][c] !== 0) {
+            // Try to find existing tile at this position with same value
+            const existingTile = tiles.find(t => t.row === r && t.col === c && t.value === newGrid[r][c]);
+            if (existingTile) {
+              newTiles.push({ ...existingTile, row: r, col: c });
+            } else {
+              // New tile or moved tile
+              const movedTile = tiles.find(t => t.value === newGrid[r][c] && !newTiles.some(nt => nt.id === t.id));
+              if (movedTile) {
+                newTiles.push({ ...movedTile, row: r, col: c });
+              } else {
+                newTiles.push({ 
+                  id: `tile-${counter++}`, 
+                  value: newGrid[r][c], 
+                  row: r, 
+                  col: c,
+                  isNew: true 
+                });
+              }
+            }
+          }
+        }
       }
 
       setHistory(prev => [...prev, grid]);
       setGrid(newGrid);
-      setTiles(processedTiles);
+      setTiles(newTiles);
       setTileIdCounter(counter);
       setScore(newScore);
     }
