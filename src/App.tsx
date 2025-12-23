@@ -223,14 +223,14 @@ const App: React.FC = () => {
     if (Math.abs(diffX) > Math.abs(diffY)) {
       // Horizontal swipe
       if (Math.abs(diffX) > 30) { // Threshold
-        if (diffX > 0) move('RIGHT'); // Swiped left (finger moved left)
-        else move('LEFT'); // Swiped right (finger moved right)
+        if (diffX > 0) move('LEFT'); // Swiped left (finger moved left, touchStart.x > touchEnd.x)
+        else move('RIGHT'); // Swiped right (finger moved right, touchStart.x < touchEnd.x)
       }
     } else {
       // Vertical swipe
       if (Math.abs(diffY) > 30) { // Threshold
-        if (diffY > 0) move('DOWN'); // Swiped up (finger moved up)
-        else move('UP'); // Swiped down (finger moved down)
+        if (diffY > 0) move('UP'); // Swiped up (finger moved up, touchStart.y > touchEnd.y)
+        else move('DOWN'); // Swiped down (finger moved down, touchStart.y < touchEnd.y)
       }
     }
     setTouchStart(null);
