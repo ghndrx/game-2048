@@ -304,9 +304,14 @@ const App: React.FC = () => {
           <div className="absolute inset-4 pointer-events-none">
             <AnimatePresence>
               {tiles.map((tile) => {
-                const tileSize = `calc(25% - 12px)`;
-                const xPos = `calc(${tile.col * 25}% + ${tile.col * 16}px)`;
-                const yPos = `calc(${tile.row * 25}% + ${tile.row * 16}px)`;
+                // Each cell is 25% of container width
+                // Gap between cells is 16px (gap-4)
+                // Position = (index * (cell_width + gap))
+                const cellPercent = 25; // 100% / 4 cells
+                const gapPx = 16;
+                const xPos = `calc(${tile.col * cellPercent}% + ${tile.col * gapPx}px)`;
+                const yPos = `calc(${tile.row * cellPercent}% + ${tile.row * gapPx}px)`;
+                const tileSize = `calc(${cellPercent}% - ${gapPx}px)`;
                 
                 return (
                   <motion.div
