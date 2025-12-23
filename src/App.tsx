@@ -62,8 +62,9 @@ const App: React.FC = () => {
 
     let workingGrid = [...newGrid];
 
+    // Rotate so we always process rows left-to-right
     if (direction === 'LEFT') workingGrid = rotate(rotate(workingGrid)); // 180
-    if (direction === 'UP') workingGrid = rotate(rotate(rotate(workingGrid))); // 270
+    if (direction === 'UP') workingGrid = rotate(rotate(rotate(workingGrid))); // 270 (CCW 90)
     if (direction === 'DOWN') workingGrid = rotate(workingGrid); // 90
 
     // Real implementation of slide and merge:
@@ -81,10 +82,10 @@ const App: React.FC = () => {
       workingGrid[i] = row;
     }
 
-    // Rotate back
-    if (direction === 'LEFT') workingGrid = rotate(rotate(workingGrid));
-    if (direction === 'UP') workingGrid = rotate(workingGrid);
-    if (direction === 'DOWN') workingGrid = rotate(rotate(rotate(workingGrid)));
+    // Rotate back to original orientation
+    if (direction === 'LEFT') workingGrid = rotate(rotate(workingGrid)); // 180 back
+    if (direction === 'UP') workingGrid = rotate(workingGrid); // 90 back (to undo 270)
+    if (direction === 'DOWN') workingGrid = rotate(rotate(rotate(workingGrid))); // 270 back (to undo 90)
 
     if (moved) {
       setHistory(prev => [...prev, grid]);
@@ -126,14 +127,14 @@ const App: React.FC = () => {
     if (Math.abs(diffX) > Math.abs(diffY)) {
       // Horizontal swipe
       if (Math.abs(diffX) > 30) { // Threshold
-        if (diffX > 0) move('LEFT');
-        else move('RIGHT');
+        if (diffX > 0) move('RIGHT'); // Swiped left (finger moved left)
+        else move('LEFT'); // Swiped right (finger moved right)
       }
     } else {
       // Vertical swipe
       if (Math.abs(diffY) > 30) { // Threshold
-        if (diffY > 0) move('UP');
-        else move('DOWN');
+        if (diffY > 0) move('DOWN'); // Swiped up (finger moved up)
+        else move('UP'); // Swiped down (finger moved down)
       }
     }
     setTouchStart(null);
