@@ -288,63 +288,62 @@ const App: React.FC = () => {
         </div>
 
         <div 
-          className="bg-[#bbada0] p-4 rounded-lg relative touch-none overflow-hidden"
-          style={{ width: '100%', aspectRatio: '1/1' }}
+          className="bg-[#bbada0] p-4 rounded-lg relative touch-none"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Background grid cells */}
-          <div className="grid grid-cols-4 gap-4 absolute inset-4">
-            {Array(GRID_SIZE * GRID_SIZE).fill(0).map((_, idx) => (
-              <div key={`bg-${idx}`} className="bg-[#cdc1b4] rounded-md" />
-            ))}
-          </div>
-          
-          {/* Animated tiles */}
-          <div className="absolute inset-4 pointer-events-none">
-            <AnimatePresence>
-              {tiles.map((tile) => {
-                // Each cell is 25% of container width
-                // Gap between cells is 16px (gap-4)
-                // Position = (index * (cell_width + gap))
-                const cellPercent = 25; // 100% / 4 cells
-                const gapPx = 16;
-                const xPos = `calc(${tile.col * cellPercent}% + ${tile.col * gapPx}px)`;
-                const yPos = `calc(${tile.row * cellPercent}% + ${tile.row * gapPx}px)`;
-                const tileSize = `calc(${cellPercent}% - ${gapPx}px)`;
-                
-                return (
-                  <motion.div
-                    key={tile.id}
-                    initial={tile.isNew ? { 
-                      scale: 0, 
-                      opacity: 0,
-                      left: xPos,
-                      top: yPos,
-                    } : false}
-                    animate={{ 
-                      scale: 1, 
-                      opacity: 1,
-                      left: xPos,
-                      top: yPos,
-                    }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ 
-                      type: "spring", 
-                      stiffness: 260, 
-                      damping: 26,
-                    }}
-                    className={`absolute flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(tile.value)}`}
-                    style={{
-                      width: tileSize,
-                      height: tileSize,
-                    }}
-                  >
-                    {tile.value}
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+          {/* Container for both grid and tiles */}
+          <div className="relative" style={{ width: '100%', paddingBottom: '100%' }}>
+            {/* Background grid cells */}
+            <div className="absolute inset-0 grid grid-cols-4 gap-4">
+              {Array(GRID_SIZE * GRID_SIZE).fill(0).map((_, idx) => (
+                <div key={`bg-${idx}`} className="bg-[#cdc1b4] rounded-md" />
+              ))}
+            </div>
+            
+            {/* Animated tiles */}
+            <div className="absolute inset-0 pointer-events-none">
+              <AnimatePresence>
+                {tiles.map((tile) => {
+                  // Grid has 4 columns with gap-4 (16px)
+                  // Total width = 4 cells + 3 gaps
+                  // Each cell width = (100% - 3*16px) / 4
+                  const gap = 16;
+                  const cellWidth = `calc((100% - ${3 * gap}px) / 4)`;
+                  const xPos = `calc((${cellWidth} + ${gap}px) * ${tile.col})`;
+                  const yPos = `calc((${cellWidth} + ${gap}px) * ${tile.row})`;
+                  
+                  return (
+                    <motion.div
+                      key={tile.id}
+                      initial={tile.isNew ? { 
+                        scale: 0, 
+                        opacity: 0,
+                      } : false}
+                      animate={{ 
+                        scale: 1, 
+                        opacity: 1,
+                      }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 260, 
+                        damping: 26,
+                      }}
+                      className={`absolute flex items-center justify-center text-3xl font-bold rounded-md ${getTileColor(tile.value)}`}
+                      style={{
+                        left: xPos,
+                        top: yPos,
+                        width: cellWidth,
+                        height: cellWidth,
+                      }}
+                    >
+                      {tile.value}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
           </div>
           
           {gameOver && (
